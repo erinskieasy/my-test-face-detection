@@ -16,7 +16,9 @@ const FaceDetection = () => {
         console.log('Starting to load models...');
         setStatus({ message: 'Loading models from local files...', type: 'info' });
         
-        // Load models from local public directory
+        // Load two essential models from the public directory:
+        // 1. SSD MobileNet - for detecting face locations in the image
+        // 2. Face Landmark 68 - for identifying facial features/landmarks
         await faceapi.nets.ssdMobilenetv1.loadFromUri('/models');
         await faceapi.nets.faceLandmark68Net.loadFromUri('/models');
         
@@ -45,15 +47,16 @@ const FaceDetection = () => {
     if (!file) return;
 
     try {
-      // Create image element
+      // Create a new image object from the uploaded file
       const img = new Image();
       img.src = URL.createObjectURL(file);
       
+      // Wait for image to load before processing
       await new Promise((resolve) => {
         img.onload = resolve;
       });
 
-      // Set up canvas
+      // Set up canvas to match image dimensions
       const canvas = canvasRef.current;
       const displaySize = { width: img.width, height: img.height };
       if (canvas) {
@@ -61,35 +64,42 @@ const FaceDetection = () => {
         canvas.height = displaySize.height;
         const ctx = canvas.getContext('2d');
         if (ctx) {
+          // Draw the original image onto canvas
           ctx.drawImage(img, 0, 0);
         }
       }
 
-      // Store image reference
+      // Store image reference (hidden from view but used for processing)
       if (imageRef.current) {
         imageRef.current.src = img.src;
         imageRef.current.style.display = 'none';
       }
 
-      // Detect faces
+      // Start face detection process
       setStatus({ message: 'Detecting faces...', type: 'info' });
+      // Use face-api to detect faces and their landmarks
       const detections = await faceapi.detectAllFaces(img).withFaceLandmarks();
 
+      // Handle case where no faces are found
       if (detections.length === 0) {
         setStatus({ message: 'No faces detected in the ID card', type: 'warning' });
         return;
       }
 
-      // Draw detections
+      // Draw the detection results onto the canvas
       if (canvas) {
         const ctx = canvas.getContext('2d');
         if (ctx) {
+          // Redraw original image
           ctx.drawImage(img, 0, 0);
+          // Draw face detection boxes
           faceapi.draw.drawDetections(canvas, detections);
+          // Draw facial landmarks (68 points marking eyes, nose, mouth, etc)
           faceapi.draw.drawFaceLandmarks(canvas, detections);
         }
       }
 
+      // Update status with detection results
       setStatus({ message: `Detected ${detections.length} face(s) in the ID card`, type: 'success' });
     } catch (error) {
       console.error('Image processing error:', error);
